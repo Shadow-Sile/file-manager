@@ -1,58 +1,219 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# File Manager - Laravel Application
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplicación de gestión de archivos desarrollada en Laravel 11 con pipeline CI/CD completo usando GitHub Actions.
 
-## About Laravel
+## Características
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **Autenticación completa**: Login, registro, verificación de email, recuperación de contraseña (Laravel Breeze)
+- **Gestión de archivos**: Subida, listado, visualización, descarga y eliminación de archivos
+- **Control de acceso**: Cada usuario solo ve y gestiona sus propios archivos (Políticas de Laravel)
+- **Interfaz responsive**: Diseño con Tailwind CSS, modo oscuro incluido
+- **Tipos de archivo soportados**: Imágenes, videos, audio, PDFs, documentos, archivos comprimidos
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Stack Tecnológico
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- **Backend**: Laravel 11 (PHP 8.3)
+- **Frontend**: Blade + Tailwind CSS + Vite
+- **Base de datos**: MySQL 8.0 / SQLite (desarrollo)
+- **Testing**: PHPUnit + Pest
+- **Code Style**: Laravel Pint
+- **Static Analysis**: PHPStan
+- **Containerización**: Docker + Nginx + PHP-FPM + Supervisor
+- **CI/CD**: GitHub Actions
 
-## Learning Laravel
+## Requisitos
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- PHP 8.3+
+- Composer 2+
+- Node.js 20+ y npm
+- MySQL 8.0 (producción) / SQLite (desarrollo)
+- Docker y Docker Compose (opcional, para producción)
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Instalación Local
 
 ```bash
-composer require laravel/boost --dev
+# Clonar repositorio
+git clone <repository-url>
+cd file-manager
 
-php artisan boost:install
+# Instalar dependencias PHP
+composer install
+
+# Instalar dependencias JS
+npm install
+
+# Copiar archivo de entorno
+cp .env.example .env
+
+# Generar clave de aplicación
+php artisan key:generate
+
+# Configurar base de datos (SQLite para desarrollo)
+touch database/database.sqlite
+# Editar .env: DB_CONNECTION=sqlite
+
+# Ejecutar migraciones
+php artisan migrate
+
+# Crear enlace de storage
+php artisan storage:link
+
+# Compilar assets
+npm run build
+
+# Iniciar servidor de desarrollo
+php artisan serve
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+## Variables de Entorno Principales
 
-## Contributing
+```env
+APP_NAME="File Manager"
+APP_ENV=local
+APP_DEBUG=true
+APP_URL=http://localhost:8000
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+DB_CONNECTION=sqlite
+# DB_CONNECTION=mysql
+# DB_HOST=127.0.0.1
+# DB_PORT=3306
+# DB_DATABASE=file_manager
+# DB_USERNAME=file_manager
+# DB_PASSWORD=secret
 
-## Code of Conduct
+FILESYSTEM_DISK=public
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Estructura del Proyecto
 
-## Security Vulnerabilities
+```
+app/
+├── Http/Controllers/
+│   ├── FileController.php      # CRUD de archivos
+│   └── Auth/                   # Controladores de autenticación (Breeze)
+├── Models/
+│   ├── File.php                # Modelo de archivo con accessors
+│   └── User.php                # Usuario con relación files()
+├── Policies/
+│   └── FilePolicy.php          # Autorización: usuarios solo ven sus archivos
+└── Providers/
+    └── AppServiceProvider.php  # Registro de políticas
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+resources/views/
+├── layouts/app.blade.php       # Layout principal
+└── files/
+    ├── index.blade.php         # Listado con filtros y paginación
+    ├── create.blade.php        # Formulario de subida (drag & drop)
+    └── show.blade.php          # Vista previa y detalles
 
-## License
+docker/
+├── nginx.conf                  # Configuración Nginx
+└── supervisord.conf            # Supervisor para PHP-FPM + Nginx
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+.github/workflows/
+└── ci-cd.yml                   # Pipeline CI/CD completo
+```
+
+## Pipeline CI/CD (GitHub Actions)
+
+El workflow `.github/workflows/ci-cd.yml` ejecuta en cada push a `main` y `develop`:
+
+### 1. **Test** (MySQL 8.0 service)
+- Instala dependencias con cache
+- Configura base de datos de prueba
+- Ejecuta migraciones
+- Corre suite de tests con coverage
+
+### 2. **Lint** (Laravel Pint)
+- Verifica estilo de código PSR-12 + Laravel
+
+### 3. **Static Analysis** (PHPStan nivel 5)
+- Analiza modelos, políticas y providers
+
+### 4. **Build Docker** (solo en push a main)
+- Construye imagen multi-stage
+- Push a GitHub Container Registry (ghcr.io)
+- Cache de capas Docker
+
+### 5. **Deploy** (solo en push a main, requiere secrets)
+- SSH al servidor de producción
+- Pull de imagen latest
+- `docker compose down && up -d`
+- Limpieza de imágenes antiguas
+
+## Secrets Requeridos para Deploy
+
+Configurar en GitHub Settings > Secrets > Actions:
+
+| Secret | Descripción |
+|--------|-------------|
+| `SSH_HOST` | IP o hostname del servidor |
+| `SSH_USER` | Usuario SSH (ej. root, ubuntu) |
+| `SSH_PRIVATE_KEY` | Clave privada SSH (sin passphrase) |
+| `SSH_PORT` | Puerto SSH (default: 22) |
+
+Variables de entorno en el servidor (`/opt/file-manager/.env`):
+```env
+DB_ROOT_PASSWORD=secure_root_password
+DB_DATABASE=file_manager
+DB_USERNAME=file_manager
+DB_PASSWORD=secure_password
+APP_URL=https://tu-dominio.com
+```
+
+## Despliegue con Docker Compose
+
+```bash
+# En el servidor
+mkdir -p /opt/file-manager
+cd /opt/file-manager
+
+# Copiar docker-compose.yml y .env
+# Editar .env con valores de producción
+
+# Levantar servicios
+docker compose up -d
+
+# Ver logs
+docker compose logs -f
+
+# Ver estado
+docker compose ps
+```
+
+## Comandos Útiles
+
+```bash
+# Tests
+php artisan test
+php artisan test --coverage
+
+# Code style
+./vendor/bin/pint          # Auto-fix
+./vendor/bin/pint --test   # Solo verificar
+
+# Static analysis
+./vendor/bin/phpstan analyse --memory-limit=256M
+
+# Base de datos
+php artisan migrate:fresh --seed
+php artisan migrate:status
+
+# Storage
+php artisan storage:link
+
+# Cache
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# Limpiar cache
+php artisan optimize:clear
+```
+
+## Licencia
+
+MIT License - Ver archivo LICENSE para detalles.
