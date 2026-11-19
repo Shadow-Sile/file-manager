@@ -14,6 +14,8 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        // Root redirects to files.index (auth) which redirects to login
+        $response->assertStatus(302);
+        $response->assertRedirect(route('files.index'));
     }
 }

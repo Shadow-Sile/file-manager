@@ -12,6 +12,10 @@ Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
+Route::get('/dashboard', function () {
+    return redirect()->route('files.index');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('files', FileController::class)
         ->only(['index', 'create', 'store', 'show', 'destroy']);
