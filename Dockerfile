@@ -1,38 +1,64 @@
+# Etapa de construcción de assets (Node.js)
+FROM node:22-alpine AS assets
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Etapa de construcción de Composer
+FROM composer:2 AS composer
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
+COPY . .
+# Descartar manifest locales de paquetes (pueden referenciar dependencias dev)
+RUN rm -f bootstrap/cache/*.php \
+    && composer dump-autoload --no-dev
+
+# Etapa de runtime
 FROM php:8.3-fpm-alpine
 
-WORKDIR /var/www/html
-
+# Instalar dependencias del sistema
 RUN apk add --no-cache \
     nginx \
     supervisor \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    libzip-dev \
-    zip \
-    unzip \
-    git \
     curl \
-    nodejs \
-    npm \
+    freetype \
+    libjpeg-turbo \
+    libpng \
+    libzip-dev \
+    postgresql-dev \
+    libpq-dev \
+    libxml2-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd pdo pdo_mysql zip bcmath opcache \
-    && rm -rf /var/cache/apk/*
+    && docker-php-ext-install -j$(nproc) gd pdo_mysql pdo_pgsql zip bcmath opcache \
+    && docker-php-ext-enable opcache
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+# Crear directorios necesarios
+RUN mkdir -p /var/log/supervisor \
+    /var/log/nginx \
+    /var/run/nginx \
+    /var/www/html
 
-COPY . .
-
-RUN composer install --no-dev --optimize-autoloader --no-interaction
-
-RUN npm ci && npm run build
-
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
-
+# Copiar configuraciones
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
+# Copiar archivos de la aplicación desde las etapas anteriores
+COPY --from=assets /app/public/build public/build
+COPY --from=composer /app/vendor vendor
+COPY . .
+
+# Configurar permisos
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
+# Exponer puerto
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Establecer punto de entrada
+ENTRYPOINT ["/entrypoint.sh"]

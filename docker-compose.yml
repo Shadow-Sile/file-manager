@@ -2,52 +2,48 @@ version: '3.8'
 
 services:
   app:
-    image: ghcr.io/${GITHUB_REPOSITORY:-file-manager}:latest
-    container_name: file-manager-app
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    environment:
-      - APP_ENV=production
-      - APP_DEBUG=false
-      - DB_CONNECTION=mysql
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_DATABASE=${DB_DATABASE:-file_manager}
-      - DB_USERNAME=${DB_USERNAME:-file_manager}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - APP_URL=${APP_URL:-http://localhost}
-    volumes:
-      - storage:/var/www/html/storage
+    build: .
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - file-manager-network
+    environment:
+      - APP_KEY
+      - APP_URL
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - DB_CONNECTION
+      - DB_HOST=db
+      - DB_PORT
+      - DB_DATABASE
+      - DB_USERNAME
+      - DB_PASSWORD
+      - SESSION_DRIVER=database
+      - CACHE_STORE=database
+      - QUEUE_CONNECTION=database
+      - FILESYSTEM_DISK=public
+    volumes:
+      - ./storage:/var/www/html/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
   db:
-    image: mysql:8.0
-    container_name: file-manager-db
-    restart: unless-stopped
+    image: postgres:15-alpine
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_DATABASE:-file_manager}
-      - MYSQL_USER=${DB_USERNAME:-file_manager}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - db_data:/var/lib/mysql
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - file-manager-network
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   db_data:
-  storage:
-
-networks:
-  file-manager-network:
-    driver: bridge

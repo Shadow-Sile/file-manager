@@ -1,51 +1,24 @@
-# Git
+# Ignorar directorios y archivos de desarrollo
+.env
 .git
 .gitignore
-
-# IDE
-.idea
-.vscode
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-storage/logs/*
-!storage/logs/.gitkeep
-
-# Cache
-bootstrap/cache/*
-!bootstrap/cache/.gitkeep
-vendor
-node_modules
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# Docker
-docker-compose.yml
-docker-compose.override.yml
-Dockerfile
-.dockerignore
-
-# CI/CD
-.github
-
-# Tests
-phpunit.xml
-tests/
-coverage/
-
-# Documentation
 README.md
-CHANGELOG.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+node_modules
+vendor
+database/*.sqlite
+npm-debug.log
+.yarn-integrity
+.nyc_output
+coverage
+.nyc_cache
 
-# Misc
-*.md
-Makefile
+# Ignorar archivos de almacenamiento públicos
+public/storage
+storage/app/public/*
+
+# Manifests de caché locales (referencian paquetes dev que no van en la imagen)
+bootstrap/cache/*.php
+storage/logs/*.log
