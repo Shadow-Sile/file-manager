@@ -65,6 +65,114 @@ npm run build
 php artisan serve
 ```
 
+## Puesta en Marcha
+
+### Desarrollo Local (SQLite)
+
+```bash
+# 1. Clonar e instalar dependencias
+git clone <repository-url>
+cd file-manager
+composer install
+npm install
+
+# 2. Configurar entorno
+cp .env.example .env
+php artisan key:generate
+
+# 3. Base de datos SQLite
+touch database/database.sqlite
+# Verificar que .env tenga: DB_CONNECTION=sqlite
+
+# 4. Migraciones y storage
+php artisan migrate
+php artisan storage:link
+
+# 5. Compilar assets y servir
+npm run build
+php artisan serve
+# Abrir http://localhost:8000
+```
+
+### Producción (Docker + MySQL)
+
+**En el servidor:**
+
+```bash
+# 1. Preparar directorio
+mkdir -p /opt/file-manager
+cd /opt/file-manager
+
+# 2. Copiar archivos de despliegue
+# docker-compose.yml, Dockerfile, docker/
+# .env (ver variables abajo)
+
+# 3. Variables de entorno obligatorias en .env:
+cat > .env << 'EOF'
+APP_NAME="File Manager"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://tu-dominio.com
+
+APP_KEY=base64:GENERA_CON_PHP_ARTISAN_KEY_GENERATE
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=file_manager
+DB_USERNAME=file_manager
+DB_PASSWORD=password_seguro
+
+FILESYSTEM_DISK=public
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+EOF
+
+# 4. Levantar servicios
+docker compose up -d
+
+# 5. Verificar
+docker compose ps
+docker compose logs -f app
+```
+
+**Variables de entorno de producción (.env):**
+
+```env
+APP_NAME="File Manager"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://tu-dominio.com
+
+APP_KEY=base64:xxxxxxxxxxxxxxxxxxxxxxxx
+
+DB_CONNECTION=mysql
+DB_HOST=db
+DB_PORT=3306
+DB_DATABASE=file_manager
+DB_USERNAME=file_manager
+DB_PASSWORD=password_muy_seguro
+
+FILESYSTEM_DISK=public
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+
+# Opcional: Redis, Mail, S3, etc.
+```
+
+### Healthcheck
+
+```bash
+# Verificar que la app responde
+curl -f http://localhost/health || echo "FAIL"
+
+# Verificar contenedores
+docker compose ps
+# Todos deben mostrar "healthy" o "Up"
+```
+
 ## Variables de Entorno Principales
 
 ```env
