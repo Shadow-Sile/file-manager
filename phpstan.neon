@@ -1,0 +1,17 @@
+parameters:
+    level: 5
+    paths:
+        - app/Models
+        - app/Policies
+        - app/Providers
+    excludePaths:
+        - .github
+        - docker
+        - public
+        - resources
+        - storage
+        - tests
+        - vendor
+        - app/Http/Controllers
+    ignoreErrors:
+        - '#^Access to an undefined property .*#'
