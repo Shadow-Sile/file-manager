@@ -1,0 +1,162 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\File;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Tests\TestCase;
+
+class FileManagementTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function makeFile(User $user, string $originalName = 'doc.txt'): File
+    {
+        Storage::fake('public');
+
+        $content = 'contenido de prueba';
+        $path = 'uploads/'.$user->id.'/x.txt';
+
+        Storage::disk('public')->put($path, $content);
+
+        return File::create([
+            'user_id' => $user->id,
+            'name' => 'x.txt',
+            'original_name' => $originalName,
+            'path' => $path,
+            'mime_type' => 'text/plain',
+            'size' => strlen($content),
+            'extension' => 'txt',
+        ]);
+    }
+
+    public function test_index_returns_200_for_authenticated_user(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('files.index'));
+
+        $response->assertStatus(200);
+    }
+
+    public function test_index_does_not_show_files_from_other_users(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+
+        $file = $this->makeFile($user2, 'secret.txt');
+
+        $response = $this->actingAs($user1)->get(route('files.index'));
+
+        $response->assertStatus(200);
+        $response->assertDontSee('secret.txt');
+    }
+
+    public function test_store_accepts_valid_file_and_redirects(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        $uploaded = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
+
+        $response = $this->actingAs($user)->post(route('files.store'), [
+            'file' => $uploaded,
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('files', 1);
+
+        $record = File::first();
+        $this->assertSame('document.pdf', $record->original_name);
+        Storage::disk('public')->assertExists($record->path);
+    }
+
+    public function test_store_rejects_request_without_file_field(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post(route('files.store'), []);
+
+        $response->assertSessionHasErrors('file');
+        $this->assertDatabaseCount('files', 0);
+    }
+
+    public function test_show_returns_200_for_owner(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+
+        $response = $this->actingAs($user)->get(route('files.show', $file));
+
+        $response->assertStatus(200);
+    }
+
+    public function test_show_returns_403_for_different_user(): void
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        $file = $this->makeFile($owner);
+
+        $response = $this->actingAs($intruder)->get(route('files.show', $file));
+
+        $response->assertStatus(403);
+    }
+
+    public function test_download_returns_200_for_owner_and_checks_content_disposition_header(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+
+        $response = $this->actingAs($user)->get(route('files.download', $file));
+
+        $response->assertStatus(200);
+        $response->assertHeader('Content-Disposition');
+    }
+
+    public function test_download_returns_403_for_different_user(): void
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        $file = $this->makeFile($owner);
+
+        $response = $this->actingAs($intruder)->get(route('files.download', $file));
+
+        $response->assertStatus(403);
+    }
+
+    public function test_destroy_removes_record_and_file_from_storage(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+
+        $response = $this->actingAs($user)->delete(route('files.destroy', $file));
+
+        $response->assertRedirect();
+        $this->assertDatabaseCount('files', 0);
+        Storage::disk('public')->assertMissing($file->path);
+    }
+
+    public function test_destroy_returns_403_for_different_user(): void
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        $file = $this->makeFile($owner);
+
+        $response = $this->actingAs($intruder)->delete(route('files.destroy', $file));
+
+        $response->assertStatus(403);
+        $this->assertDatabaseCount('files', 1);
+    }
+
+    public function test_unauthenticated_routes_redirect_to_login(): void
+    {
+        $this->get(route('files.index'))->assertRedirect(route('login'));
+        $this->get(route('files.create'))->assertRedirect(route('login'));
+        $this->post(route('files.store'), [])->assertRedirect(route('login'));
+    }
+}

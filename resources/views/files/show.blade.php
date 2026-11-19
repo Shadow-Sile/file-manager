@@ -1,91 +1,60 @@
-@extends('layouts.app', ['title' => $file->original_name])
-
-@section('content')
-<div class="max-w-4xl mx-auto">
-    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-            <a href="{{ route('files.index') }}" class="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1 mb-2 inline-block">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-                Volver a Mis Archivos
-            </a>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white truncate">{{ $file->original_name }}</h1>
-        </div>
-        <div class="flex gap-2">
-            <a href="{{ route('files.download', $file) }}"
-               class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">
-                Descargar
-            </a>
-            <form action="{{ route('files.destroy', $file) }}" method="POST" class="inline">
-                @csrf
-                @method('DELETE')
-                <button type="submit"
-                        onclick="return confirm('¿Estás seguro de eliminar este archivo?')"
-                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition">
-                    Eliminar
-                </button>
-            </form>
-        </div>
+<x-app-layout>
+    <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">File Details</h1>
+        <a href="{{ route('files.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition ease-in-out duration-150">
+            Back to Files
+        </a>
     </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div class="aspect-video bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-            @if (str_starts_with($file->mime_type, 'image'))
-                <img src="{{ Storage::url($file->path) }}" alt="{{ $file->original_name }}" class="max-w-full max-h-[600px] object-contain">
-            @elseif (str_starts_with($file->mime_type, 'video'))
-                <video controls class="max-w-full max-h-[600px]">
-                    <source src="{{ Storage::url($file->path) }}" type="{{ $file->mime_type }}">
-                    Tu navegador no soporta la reproducción de video.
-                </video>
-            @elseif (str_starts_with($file->mime_type, 'audio'))
-                <audio controls class="w-full max-w-md">
-                    <source src="{{ Storage::url($file->path) }}" type="{{ $file->mime_type }}">
-                    Tu navegador no soporta la reproducción de audio.
-                </audio>
-            @elseif (str_starts_with($file->mime_type, 'application/pdf'))
-                <iframe src="{{ Storage::url($file->path) }}" class="w-full h-[600px] border-0"></iframe>
-            @elseif (str_starts_with($file->mime_type, 'text/'))
-                <pre class="w-full h-[600px] p-4 overflow-auto text-sm bg-gray-900 text-green-300">{{ file_get_contents(Storage::path($file->path)) }}</pre>
-            @else
-                <div class="text-center">
-                    <span class="text-8xl">{{ $file->icon }}</span>
-                    <p class="mt-4 text-gray-500 dark:text-gray-400">Vista previa no disponible para este tipo de archivo</p>
-                    <a href="{{ route('files.download', $file) }}" class="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-                        Descargar para ver
-                    </a>
-                </div>
-            @endif
+    <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white">{{ $file->name }}</h2>
         </div>
 
-        <div class="p-6 border-t border-gray-200 dark:border-gray-700">
-            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Nombre original</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->original_name }}</dd>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</h3>
+                    <div class="mt-2 space-y-2">
+                        <div class="flex">
+                            <div class="w-1/3 text-sm text-gray-500 dark:text-gray-400">Path:</div>
+                            <div class="w-2/3 text-sm text-gray-900 dark:text-white break-all">{{ $file->path }}</div>
+                        </div>
+                        <div class="flex">
+                            <div class="w-1/3 text-sm text-gray-500 dark:text-gray-400">Type:</div>
+                            <div class="w-2/3 text-sm text-gray-900 dark:text-white">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                                    {{ $file->type }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex">
+                            <div class="w-1/3 text-sm text-gray-500 dark:text-gray-400">Size:</div>
+                            <div class="w-2/3 text-sm text-gray-900 dark:text-white">{{ number_format($file->size) }} bytes</div>
+                        </div>
+                        <div class="flex">
+                            <div class="w-1/3 text-sm text-gray-500 dark:text-gray-400">Created:</div>
+                            <div class="w-2/3 text-sm text-gray-900 dark:text-white">{{ $file->created_at->format('M j, Y g:i A') }}</div>
+                        </div>
+                    </div>
                 </div>
+
                 <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Tipo MIME</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->mime_type }}</dd>
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</h3>
+                    <div class="mt-2 space-y-2">
+                        <a href="{{ route('files.download', $file) }}" class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150">
+                            Download
+                        </a>
+                        <form action="{{ route('files.destroy', $file) }}" method="POST" style="display: inline;" class="inline">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="ml-2 inline-flex items-center px-4 py-2 bg-red-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 active:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition ease-in-out duration-150" onclick="return confirm('Are you sure you want to delete this file?')">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Tamaño</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->formatted_size }} ({{ $file->size }} bytes)</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Extensión</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->extension ?? 'N/A' }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Subido el</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->created_at->format('d/m/Y H:i') }}</dd>
-                </div>
-                <div>
-                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400">Última modificación</dt>
-                    <dd class="mt-1 text-sm text-gray-900 dark:text-white">{{ $file->updated_at->format('d/m/Y H:i') }}</dd>
-                </div>
-            </dl>
+            </div>
         </div>
     </div>
-</div>
-@endsection
+</x-app-layout>
