@@ -92,9 +92,13 @@ jobs:
         run: |
           set -euo pipefail
           export APP_KEY="$(php artisan key:generate --show --no-interaction)"
-          wasmer run . --net > "$RUNNER_TEMP/wasmer.log" 2>&1 &
+          wasmer run . --net \
+            --env "APP_KEY=$APP_KEY" --env APP_ENV=testing \
+            --env APP_URL=http://localhost:8080 \
+            --env SESSION_DRIVER=array --env CACHE_STORE=array \
+            --env LOG_CHANNEL=stderr > "$RUNNER_TEMP/wasmer.log" 2>&1 &
           runtime_pid=$!
-          trap 'kill "$runtime_pid" 2>/dev/null || true' EXIT
+          trap 'result=$?; if [ $result -ne 0 ]; then cat "$RUNNER_TEMP/wasmer.log"; fi; kill "$runtime_pid" 2>/dev/null || true' EXIT
           ready=false
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://127.0.0.1:8080/up > /dev/null; then
