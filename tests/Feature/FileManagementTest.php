@@ -210,4 +210,90 @@ class FileManagementTest extends TestCase
         $this->actingAs($user)->get(route('files.index', ['search' => 'ausente']))
             ->assertOk()->assertDontSee('factura-noviembre.txt');
     }
+
+    public function test_download_forces_attachment_and_disables_content_sniffing(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, 'document.html');
+
+        $response = $this->actingAs($user)->get(route('files.download', $file));
+
+        $response->assertOk()
+            ->assertDownload('document.html')
+            ->assertHeader('Content-Type', 'application/octet-stream')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeaderContains('Cache-Control', 'no-store');
+    }
+
+    public function test_download_returns_404_when_stored_file_is_missing(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+        Storage::disk('local')->delete($file->path);
+
+        $response = $this->actingAs($user)->get(route('files.download', $file));
+
+        $response->assertNotFound();
+    }
+
+    public function test_upload_detects_content_instead_of_trusting_client_mime_type(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+        $source = UploadedFile::fake()->createWithContent('report.php', 'A plain text report');
+        $uploaded = new UploadedFile($source->getPathname(), 'report.php', 'image/png', null, true);
+
+        $response = $this->actingAs($user)->post(route('files.store'), ['file' => $uploaded]);
+
+        $response->assertRedirect(route('files.index'))->assertSessionHasNoErrors();
+        $record = File::firstOrFail();
+        $this->assertSame('text/plain', $record->mime_type);
+        $this->assertSame('txt', $record->extension);
+        Storage::disk('local')->assertExists($record->path);
+    }
+
+    public function test_upload_rejects_files_over_50_megabytes(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post(route('files.store'), [
+            'file' => UploadedFile::fake()->create('large.zip', 51201),
+        ]);
+
+        $response->assertSessionHasErrors('file');
+        $this->assertDatabaseCount('files', 0);
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_index_filters_by_original_name_and_displays_readable_metadata(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user, 'budget.txt');
+
+        $response = $this->actingAs($user)->get(route('files.index', ['search' => 'budget']));
+
+        $response->assertOk()->assertSee('budget.txt')->assertSee('text/plain');
+        $this->assertSame(1, $response->viewData('files')->total());
+    }
+
+    public function test_index_excludes_files_that_do_not_match_the_type_filter(): void
+    {
+        $user = User::factory()->create();
+        $this->makeFile($user, 'notes.txt');
+
+        $response = $this->actingAs($user)->get(route('files.index', ['type' => 'image/']));
+
+        $response->assertOk()->assertDontSee('notes.txt');
+        $this->assertSame(0, $response->viewData('files')->total());
+    }
+
+    public function test_unauthenticated_download_redirects_to_login(): void
+    {
+        $file = $this->makeFile(User::factory()->create());
+
+        $response = $this->get(route('files.download', $file));
+
+        $response->assertRedirect(route('login'));
+    }
 }

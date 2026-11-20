@@ -16,7 +16,7 @@ class FileController extends Controller
     {
         $request->validate([
             'search' => 'nullable|string|max:255',
-            'type' => 'nullable|in:image,video,audio,application,text',
+            'type' => 'nullable|in:image/,video/,audio/,application/pdf,text/',
         ]);
 
         $query = File::where('user_id', auth()->id())->latest();
@@ -47,13 +47,11 @@ class FileController extends Controller
 
         $uploadedFile = $request->file('file');
         $originalName = $uploadedFile->getClientOriginalName();
-        $extension = $uploadedFile->getClientOriginalExtension();
-        $mimeType = $uploadedFile->getMimeType();
+        $extension = $uploadedFile->guessExtension() ?? 'bin';
+        $mimeType = $uploadedFile->getMimeType() ?? 'application/octet-stream';
         $size = $uploadedFile->getSize();
         $name = Str::uuid().'.'.$extension;
         $path = $uploadedFile->storeAs('uploads/'.auth()->id(), $name, 'local');
-
-        abort_if($path === false, 500, 'No se ha podido guardar el archivo.');
 
         try {
             File::create([
@@ -67,6 +65,7 @@ class FileController extends Controller
             ]);
         } catch (\Throwable $exception) {
             Storage::disk('local')->delete($path);
+
             throw $exception;
         }
 
@@ -86,7 +85,11 @@ class FileController extends Controller
 
         abort_unless(Storage::disk('local')->exists($file->path), 404);
 
-        return Storage::disk('local')->download($file->path, $file->original_name);
+        return Storage::disk('local')->download($file->path, $file->original_name, [
+            'Content-Type' => 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     public function destroy(File $file): RedirectResponse

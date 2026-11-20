@@ -1,0 +1,40 @@
+kind: wasmer.io/App.v0
+name: file-manager-dario
+package: .
+debug: false
+env:
+  APP_NAME: "File Manager"
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_LOCALE: es
+  APP_FALLBACK_LOCALE: en
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: warning
+  DB_CONNECTION: pgsql
+  DB_SSLMODE: require
+  SESSION_DRIVER: database
+  SESSION_SECURE_COOKIE: "true"
+  CACHE_STORE: database
+  QUEUE_CONNECTION: sync
+  FILESYSTEM_DISK: local
+  FILES_ROOT: /data/files
+  MAIL_MAILER: log
+scaling:
+  mode: single_concurrency
+locality:
+  regions:
+    - fr-roub1
+capabilities:
+  database:
+    engine: postgres
+volumes:
+  - name: uploaded-files
+    mount: /data
+jobs:
+  - name: migrate-database
+    trigger: pre-deployment
+    timeout: 5m
+    retries: 2
+    action:
+      execute:
+        command: migrate
