@@ -4,7 +4,7 @@ Proyecto propio de gestión de archivos en Laravel 13, Blade, Tailwind, PostgreS
 
 ## Estado comprobado
 
-40 tests pasan, assets compilados, migraciones SQLite ejecutadas y PHPStan sin errores. La construcción de Docker y el despliegue remoto quedan pendientes de comprobar: Docker Desktop no estaba arrancado y no hay una sesión válida en la CLI de GitHub. No se ha publicado esta revisión.
+40 tests pasan, assets compilados, migraciones SQLite ejecutadas y PHPStan sin errores. Proyecto publicado en GitHub mediante GitHub Desktop. La construcción de la imagen se verifica en GitHub Actions. El despliegue en Render está bloqueado porque la cuenta está suspendida por una factura pendiente. Docker Desktop local tampoco puede arrancar: su instalación no contiene el ejecutable principal.
 
 ## Arranque local
 
@@ -55,7 +55,8 @@ No publica imágenes ni despliega desde pull requests. También permite ejecuci�
 
 ### Configuración pendiente en las cuentas
 
-- Publicar esta revisión en `Shadow-Sile/file-manager` y comprobar Actions.
+- Comprobar la ejecución de Actions en `Shadow-Sile/file-manager`.
+- Resolver la suspensión por facturación de la cuenta de Render antes de crear el servicio.
 - Dar visibilidad pública al paquete GHCR si Render lo consume sin credenciales.
 - Crear el Blueprint de `render.yaml`, o conectar un servicio de imagen a `ghcr.io/shadow-sile/file-manager:latest`.
 - En Render definir una `APP_KEY` estable y `APP_URL` con la URL HTTPS real. La conexión PostgreSQL se obtiene del Blueprint.
