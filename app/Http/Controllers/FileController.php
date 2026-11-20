@@ -3,14 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\File;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): View
     {
+        $request->validate([
+            'search' => 'nullable|string|max:255',
+            'type' => 'nullable|in:image,video,audio,application,text',
+        ]);
+
         $query = File::where('user_id', auth()->id())->latest();
 
         if ($request->filled('search')) {
@@ -26,12 +34,12 @@ class FileController extends Controller
         return view('files.index', compact('files'));
     }
 
-    public function create()
+    public function create(): View
     {
         return view('files.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $request->validate([
             'file' => 'required|file|max:51200',
@@ -40,43 +48,52 @@ class FileController extends Controller
         $uploadedFile = $request->file('file');
         $originalName = $uploadedFile->getClientOriginalName();
         $extension = $uploadedFile->getClientOriginalExtension();
-        $mimeType = $uploadedFile->getClientMimeType();
+        $mimeType = $uploadedFile->getMimeType();
         $size = $uploadedFile->getSize();
         $name = Str::uuid().'.'.$extension;
-        $path = $uploadedFile->storeAs('uploads/'.auth()->id(), $name, 'public');
+        $path = $uploadedFile->storeAs('uploads/'.auth()->id(), $name, 'local');
 
-        File::create([
-            'user_id' => auth()->id(),
-            'name' => $name,
-            'original_name' => $originalName,
-            'path' => $path,
-            'mime_type' => $mimeType,
-            'size' => $size,
-            'extension' => $extension,
-        ]);
+        abort_if($path === false, 500, 'No se ha podido guardar el archivo.');
+
+        try {
+            File::create([
+                'user_id' => auth()->id(),
+                'name' => $name,
+                'original_name' => $originalName,
+                'path' => $path,
+                'mime_type' => $mimeType,
+                'size' => $size,
+                'extension' => $extension,
+            ]);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($path);
+            throw $exception;
+        }
 
         return redirect()->route('files.index')->with('success', 'Archivo subido correctamente.');
     }
 
-    public function show(File $file)
+    public function show(File $file): View
     {
         $this->authorize('view', $file);
 
         return view('files.show', compact('file'));
     }
 
-    public function download(File $file)
+    public function download(File $file): StreamedResponse
     {
         $this->authorize('view', $file);
 
-        return Storage::disk('public')->download($file->path, $file->original_name);
+        abort_unless(Storage::disk('local')->exists($file->path), 404);
+
+        return Storage::disk('local')->download($file->path, $file->original_name);
     }
 
-    public function destroy(File $file)
+    public function destroy(File $file): RedirectResponse
     {
         $this->authorize('delete', $file);
 
-        Storage::disk('public')->delete($file->path);
+        Storage::disk('local')->delete($file->path);
         $file->delete();
 
         return redirect()->route('files.index')->with('success', 'Archivo eliminado correctamente.');

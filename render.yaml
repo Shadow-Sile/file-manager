@@ -32,9 +32,9 @@ services:
       - key: CACHE_STORE
         value: database
       - key: QUEUE_CONNECTION
-        value: database
+        value: sync
       - key: FILESYSTEM_DISK
-        value: public
+        value: local
 
 databases:
   - name: file-manager-db

@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
 
@@ -37,8 +44,8 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: mbstring, pdo_mysql, gd, zip, bcmath, opcache
+          php-version: '8.5'
+          extensions: mbstring, pdo_mysql, pdo_sqlite, gd, zip, bcmath, opcache
           coverage: xdebug
 
       - name: Cache Composer packages
@@ -86,7 +93,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.5'
 
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -112,7 +119,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.5'
           extensions: mbstring, pdo_mysql, gd, zip, bcmath
 
       - name: Cache Composer packages
@@ -133,7 +140,7 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: [test, lint, static-analysis]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -183,7 +190,7 @@ jobs:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     environment: production
 
     steps:
@@ -197,8 +204,8 @@ jobs:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::notice::RENDER_DEPLOY_HOOK_URL secret not set; skipping Render deploy."
-            exit 0
+            echo "::error::Configura RENDER_DEPLOY_HOOK_URL para desplegar en producción."
+            exit 1
           fi
           curl --fail-with-body --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
           echo ""

@@ -22,3 +22,11 @@ storage/app/public/*
 # Manifests de caché locales (referencian paquetes dev que no van en la imagen)
 bootstrap/cache/*.php
 storage/logs/*.log
+.agents
+.claude
+storage/app/private/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+.env.*
+!.env.example

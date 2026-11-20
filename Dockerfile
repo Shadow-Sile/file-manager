@@ -7,7 +7,12 @@ COPY . .
 RUN npm run build
 
 # Etapa de construcción de Composer
-FROM composer:2 AS composer
+FROM php:8.5-cli-alpine AS composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+RUN apk add --no-cache git unzip libxml2 \
+    && apk add --no-cache --virtual .build-deps libxml2-dev \
+    && docker-php-ext-install dom \
+    && apk del .build-deps
 WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
@@ -17,9 +22,9 @@ RUN rm -f bootstrap/cache/*.php \
     && composer dump-autoload --no-dev
 
 # Etapa de runtime
-FROM php:8.3-fpm-alpine
+FROM php:8.5-fpm-alpine
 
-# Instalar dependencias del sistema
+# Libs de runtime (explícitas: se conservan tras purgar los -dev) + headers de build
 RUN apk add --no-cache \
     nginx \
     supervisor \
@@ -27,13 +32,22 @@ RUN apk add --no-cache \
     freetype \
     libjpeg-turbo \
     libpng \
+    libzip \
+    libpq \
+    libxml2 \
+    zlib \
+    && apk add --no-cache --virtual .build-deps \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
     libzip-dev \
     postgresql-dev \
-    libpq-dev \
     libxml2-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd pdo_mysql pdo_pgsql zip bcmath opcache \
-    && docker-php-ext-enable opcache
+    && docker-php-ext-install -j$(nproc) dom gd pdo_mysql pdo_pgsql zip bcmath \
+    && apk del .build-deps
+
+WORKDIR /var/www/html
 
 # Crear directorios necesarios
 RUN mkdir -p /var/log/supervisor \

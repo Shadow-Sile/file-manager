@@ -15,12 +15,12 @@ class FileManagementTest extends TestCase
 
     private function makeFile(User $user, string $originalName = 'doc.txt'): File
     {
-        Storage::fake('public');
+        Storage::fake('local');
 
         $content = 'contenido de prueba';
         $path = 'uploads/'.$user->id.'/x.txt';
 
-        Storage::disk('public')->put($path, $content);
+        Storage::disk('local')->put($path, $content);
 
         return File::create([
             'user_id' => $user->id,
@@ -57,7 +57,7 @@ class FileManagementTest extends TestCase
 
     public function test_store_accepts_valid_file_and_redirects(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
 
         $uploaded = UploadedFile::fake()->create('document.pdf', 100, 'application/pdf');
@@ -72,7 +72,7 @@ class FileManagementTest extends TestCase
 
         $record = File::first();
         $this->assertSame('document.pdf', $record->original_name);
-        Storage::disk('public')->assertExists($record->path);
+        Storage::disk('local')->assertExists($record->path);
     }
 
     public function test_store_rejects_request_without_file_field(): void
@@ -130,7 +130,7 @@ class FileManagementTest extends TestCase
 
     public function test_destroy_removes_record_and_file_from_storage(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         $file = $this->makeFile($user);
 
@@ -138,7 +138,7 @@ class FileManagementTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseCount('files', 0);
-        Storage::disk('public')->assertMissing($file->path);
+        Storage::disk('local')->assertMissing($file->path);
     }
 
     public function test_destroy_returns_403_for_different_user(): void
@@ -158,5 +158,56 @@ class FileManagementTest extends TestCase
         $this->get(route('files.index'))->assertRedirect(route('login'));
         $this->get(route('files.create'))->assertRedirect(route('login'));
         $this->post(route('files.store'), [])->assertRedirect(route('login'));
+    }
+
+    public function test_download_returns_404_if_stored_file_is_missing(): void
+    {
+        $user = User::factory()->create();
+        $file = $this->makeFile($user);
+        Storage::disk('local')->delete($file->path);
+
+        $this->actingAs($user)->get(route('files.download', $file))->assertNotFound();
+    }
+
+    public function test_uploaded_files_are_private_and_use_detected_mime_type(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $user = User::factory()->create();
+        $path = tempnam(sys_get_temp_dir(), 'file-manager-test-');
+        file_put_contents($path, 'Texto privado');
+        $upload = new UploadedFile($path, 'document.html', 'text/html', null, true);
+
+        $this->actingAs($user)->post(route('files.store'), ['file' => $upload])
+            ->assertRedirect(route('files.index'));
+
+        $file = File::firstOrFail();
+        $this->assertSame('text/plain', $file->mime_type);
+        Storage::disk('local')->assertExists($file->path);
+        Storage::disk('public')->assertMissing($file->path);
+    }
+
+    public function test_store_rejects_files_larger_than_50_mb(): void
+    {
+        Storage::fake('local');
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('files.store'), [
+            'file' => UploadedFile::fake()->create('big.zip', 51201),
+        ])->assertSessionHasErrors('file');
+
+        $this->assertDatabaseCount('files', 0);
+        Storage::disk('local')->assertDirectoryEmpty('uploads');
+    }
+
+    public function test_search_returns_matching_original_filename(): void
+    {
+        $user = User::factory()->create();
+        $this->makeFile($user, 'factura-noviembre.txt');
+
+        $this->actingAs($user)->get(route('files.index', ['search' => 'factura']))
+            ->assertOk()->assertSee('factura-noviembre.txt');
+        $this->actingAs($user)->get(route('files.index', ['search' => 'ausente']))
+            ->assertOk()->assertDontSee('factura-noviembre.txt');
     }
 }
