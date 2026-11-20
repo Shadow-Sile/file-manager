@@ -1,6 +1,6 @@
 # File Manager - Laravel Application
 
-Aplicación de gestión de archivos desarrollada en Laravel 11 con pipeline CI/CD completo usando GitHub Actions.
+Aplicación de gestión de archivos desarrollada en Laravel 13 con pipeline CI/CD completo usando GitHub Actions y despliegue automático en Render.com.
 
 ## Características
 
@@ -8,26 +8,27 @@ Aplicación de gestión de archivos desarrollada en Laravel 11 con pipeline CI/C
 - **Gestión de archivos**: Subida, listado, visualización, descarga y eliminación de archivos
 - **Control de acceso**: Cada usuario solo ve y gestiona sus propios archivos (Políticas de Laravel)
 - **Interfaz responsive**: Diseño con Tailwind CSS, modo oscuro incluido
-- **Tipos de archivo soportados**: Imágenes, videos, audio, PDFs, documentos, archivos comprimidos
+- **Tipos de archivo soportados**: Imágenes, videos, audio, PDFs, documentos, archivos comprimidos (hasta 50 MB)
+- **Tests**: 36 tests Feature que cubren el CRUD, la autorización y el acceso sin sesión
 
 ## Stack Tecnológico
 
-- **Backend**: Laravel 11 (PHP 8.3)
+- **Backend**: Laravel 13 (PHP 8.3+)
 - **Frontend**: Blade + Tailwind CSS + Vite
-- **Base de datos**: MySQL 8.0 / SQLite (desarrollo)
-- **Testing**: PHPUnit + Pest
+- **Base de datos**: PostgreSQL (producción, Render) / MySQL (CI) / SQLite (desarrollo)
+- **Testing**: PHPUnit
 - **Code Style**: Laravel Pint
 - **Static Analysis**: PHPStan
 - **Containerización**: Docker + Nginx + PHP-FPM + Supervisor
-- **CI/CD**: GitHub Actions
+- **CI/CD**: GitHub Actions → GHCR → Render.com
 
 ## Requisitos
 
 - PHP 8.3+
 - Composer 2+
 - Node.js 20+ y npm
-- MySQL 8.0 (producción) / SQLite (desarrollo)
-- Docker y Docker Compose (opcional, para producción)
+- SQLite (desarrollo), MySQL 8.0 (CI) o PostgreSQL (producción)
+- Docker y Docker Compose (opcional, para correr la pila completa en local)
 
 ## Instalación Local
 
@@ -65,9 +66,7 @@ npm run build
 php artisan serve
 ```
 
-## Puesta en Marcha
-
-### Desarrollo Local (SQLite)
+## Desarrollo Local (SQLite)
 
 ```bash
 # 1. Clonar e instalar dependencias
@@ -94,136 +93,43 @@ php artisan serve
 # Abrir http://localhost:8000
 ```
 
-### Producción (Docker + MySQL)
-
-**En el servidor:**
+## Desarrollo con Docker Compose (PostgreSQL)
 
 ```bash
-# 1. Preparar directorio
-mkdir -p /opt/file-manager
-cd /opt/file-manager
+# Variables necesarias en .env (además de las de arriba)
+# DB_CONNECTION=pgsql, DB_HOST=db, DB_PORT=5432, DB_DATABASE=file_manager,
+# DB_USERNAME=file_manager, DB_PASSWORD=...
 
-# 2. Copiar archivos de despliegue
-# docker-compose.yml, Dockerfile, docker/
-# .env (ver variables abajo)
-
-# 3. Variables de entorno obligatorias en .env:
-cat > .env << 'EOF'
-APP_NAME="File Manager"
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://tu-dominio.com
-
-APP_KEY=base64:GENERA_CON_PHP_ARTISAN_KEY_GENERATE
-
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=file_manager
-DB_USERNAME=file_manager
-DB_PASSWORD=password_seguro
-
-FILESYSTEM_DISK=public
-SESSION_DRIVER=database
-QUEUE_CONNECTION=database
-CACHE_STORE=database
-EOF
-
-# 4. Levantar servicios
 docker compose up -d
 
-# 5. Verificar
+# Verificar
 docker compose ps
 docker compose logs -f app
-```
-
-**Variables de entorno de producción (.env):**
-
-```env
-APP_NAME="File Manager"
-APP_ENV=production
-APP_DEBUG=false
-APP_URL=https://tu-dominio.com
-
-APP_KEY=base64:xxxxxxxxxxxxxxxxxxxxxxxx
-
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=file_manager
-DB_USERNAME=file_manager
-DB_PASSWORD=password_muy_seguro
-
-FILESYSTEM_DISK=public
-SESSION_DRIVER=database
-QUEUE_CONNECTION=database
-CACHE_STORE=database
-
-# Opcional: Redis, Mail, S3, etc.
-```
-
-### Healthcheck
-
-```bash
-# Verificar que la app responde
 curl -f http://localhost/health || echo "FAIL"
-
-# Verificar contenedores
-docker compose ps
-# Todos deben mostrar "healthy" o "Up"
 ```
 
-## Variables de Entorno Principales
+El entrypoint del contenedor ejecuta automáticamente `storage:link`, `config:cache`, `view:cache` y `migrate --force` (con reintentos) antes de arrancar nginx + PHP-FPM vía supervisord.
 
-```env
-APP_NAME="File Manager"
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://localhost:8000
+## Producción en Render.com
 
-DB_CONNECTION=sqlite
-# DB_CONNECTION=mysql
-# DB_HOST=127.0.0.1
-# DB_PORT=3306
-# DB_DATABASE=file_manager
-# DB_USERNAME=file_manager
-# DB_PASSWORD=secret
+El despliegue está definido en `render.yaml` (Blueprint):
 
-FILESYSTEM_DISK=public
-SESSION_DRIVER=database
-QUEUE_CONNECTION=database
-CACHE_STORE=database
-```
+- **Servicio web** `file-manager`: imagen preconstruida desde `ghcr.io/shadow-sile/file-manager:latest` (`runtime: image`), plan gratuito, health check en `/health`.
+- **Base de datos** `file-manager-db`: PostgreSQL gratuito. El servicio recibe `DB_URL` automáticamente vía `fromDatabase`.
+- Las migraciones se ejecutan en el entrypoint del contenedor (`migrate --force`), porque el plan gratuito de Render no permite `preDeployCommand`.
 
-## Estructura del Proyecto
+### Pasos
 
-```
-app/
-├── Http/Controllers/
-│   ├── FileController.php      # CRUD de archivos
-│   └── Auth/                   # Controladores de autenticación (Breeze)
-├── Models/
-│   ├── File.php                # Modelo de archivo con accessors
-│   └── User.php                # Usuario con relación files()
-├── Policies/
-│   └── FilePolicy.php          # Autorización: usuarios solo ven sus archivos
-└── Providers/
-    └── AppServiceProvider.php  # Registro de políticas
+1. **Crear el servicio en Render**:
+   - [New > Blueprint](https://dashboard.render.com/blueprints) y apuntar al repositorio GitHub, o
+   - crear manualmente un **Web Service** con *Source Code → Existing Image* apuntando a `ghcr.io/shadow-sile/file-manager:latest` y añadir una **PostgreSQL** con los mismos env vars que `render.yaml`.
+2. **Variables de entorno obligatorias** (en el dashboard de Render):
+   - `APP_KEY`: generar con `php artisan key:generate --show` y pegarla (`sync: false` en el blueprint).
+   - `APP_URL`: dominio público asignado por Render (ej. `https://file-manager-xxxx.onrender.com`).
+3. **Secret de GitHub** `RENDER_DEPLOY_HOOK_URL`: URL del deploy hook del servicio (Settings → Deploy → Deploy Hook). Sin él, el job de deploy se salta con un aviso.
+4. **Push a `main`** → GitHub Actions construye la imagen, la sube a GHCR y avisa a Render mediante el deploy hook.
 
-resources/views/
-├── layouts/app.blade.php       # Layout principal
-└── files/
-    ├── index.blade.php         # Listado con filtros y paginación
-    ├── create.blade.php        # Formulario de subida (drag & drop)
-    └── show.blade.php          # Vista previa y detalles
-
-docker/
-├── nginx.conf                  # Configuración Nginx
-└── supervisord.conf            # Supervisor para PHP-FPM + Nginx
-
-.github/workflows/
-└── ci-cd.yml                   # Pipeline CI/CD completo
-```
+> **Nota**: el plan gratuito de Render se suspende tras 15 min de inactividad y no tiene discos persistentes; los archivos subidos viven en el contenedor y se pierden al redeploy. Para uso real, considera un disco persistente o S3.
 
 ## Pipeline CI/CD (GitHub Actions)
 
@@ -231,65 +137,66 @@ El workflow `.github/workflows/ci-cd.yml` ejecuta en cada push a `main` y `devel
 
 ### 1. **Test** (MySQL 8.0 service)
 - Instala dependencias con cache
-- Configura base de datos de prueba
-- Ejecuta migraciones
-- Corre suite de tests con coverage
+- Migra contra MySQL (`file_manager_test`)
+- Corre la suite (PHPUnit usa SQLite en memoria vía `phpunit.xml`)
 
 ### 2. **Lint** (Laravel Pint)
 - Verifica estilo de código PSR-12 + Laravel
 
-### 3. **Static Analysis** (PHPStan nivel 5)
-- Analiza modelos, políticas y providers
+### 3. **Static Analysis** (PHPStan)
+- Analiza modelos, controladores y políticas
 
-### 4. **Build Docker** (solo en push a main)
-- Construye imagen multi-stage
-- Push a GitHub Container Registry (ghcr.io)
-- Cache de capas Docker
+### 4. **Build Docker** (solo en push a `main`)
+- Construye imagen multi-stage (assets → composer → runtime)
+- Push a GitHub Container Registry (`ghcr.io/shadow-sile/file-manager:latest`)
+- Cache de capas Docker (GitHub Actions cache)
 
-### 5. **Deploy** (solo en push a main, requiere secrets)
-- SSH al servidor de producción
-- Pull de imagen latest
-- `docker compose down && up -d`
-- Limpieza de imágenes antiguas
+### 5. **Deploy to Render** (solo en push a `main`)
+- Envía un POST al deploy hook de Render para redeploy con la imagen nueva
 
 ## Secrets Requeridos para Deploy
 
-Configurar en GitHub Settings > Secrets > Actions:
+Configurar en GitHub Settings > Secrets and variables > Actions:
 
 | Secret | Descripción |
 |--------|-------------|
-| `SSH_HOST` | IP o hostname del servidor |
-| `SSH_USER` | Usuario SSH (ej. root, ubuntu) |
-| `SSH_PRIVATE_KEY` | Clave privada SSH (sin passphrase) |
-| `SSH_PORT` | Puerto SSH (default: 22) |
+| `RENDER_DEPLOY_HOOK_URL` | URL del deploy hook del servicio web en Render |
 
-Variables de entorno en el servidor (`/opt/file-manager/.env`):
-```env
-DB_ROOT_PASSWORD=secure_root_password
-DB_DATABASE=file_manager
-DB_USERNAME=file_manager
-DB_PASSWORD=secure_password
-APP_URL=https://tu-dominio.com
+El resto de credenciales (BD, `APP_KEY`) se gestionan en Render y se inyectan al contenedor; `GITHUB_TOKEN` para GHCR lo aporta GitHub Actions.
+
+## Estructura del Proyecto
+
 ```
+app/
+├── Http/Controllers/
+│   ├── Controller.php           # Base con AuthorizesRequests/ValidatesRequests
+│   ├── FileController.php       # CRUD de archivos
+│   └── Auth/                    # Controladores de autenticación (Breeze)
+├── Models/
+│   ├── File.php                 # Modelo de archivo con accessors
+│   └── User.php                 # Usuario con relación files()
+├── Policies/
+│   └── FilePolicy.php           # Autorización: usuarios solo ven sus archivos
+└── Providers/
+    └── AppServiceProvider.php   # Registro de políticas
 
-## Despliegue con Docker Compose
+resources/views/
+├── layouts/app.blade.php        # Layout principal (componente x-app-layout)
+└── files/
+    ├── index.blade.php          # Listado con filtros y paginación
+    ├── create.blade.php         # Formulario de subida (drag & drop)
+    └── show.blade.php           # Vista previa y detalles
 
-```bash
-# En el servidor
-mkdir -p /opt/file-manager
-cd /opt/file-manager
+docker/
+├── entrypoint.sh                # storage:link, cache, migraciones, supervisord
+├── nginx.conf                   # Nginx (fastcgi 127.0.0.1:9000, subidas 64M)
+├── supervisord.conf             # Supervisor: PHP-FPM + Nginx
+└── php/uploads.ini              # Límites de subida de PHP
 
-# Copiar docker-compose.yml y .env
-# Editar .env con valores de producción
+.github/workflows/
+└── ci-cd.yml                    # Pipeline CI/CD completo
 
-# Levantar servicios
-docker compose up -d
-
-# Ver logs
-docker compose logs -f
-
-# Ver estado
-docker compose ps
+render.yaml                      # Blueprint de Render (web + PostgreSQL)
 ```
 
 ## Comandos Útiles
@@ -297,11 +204,12 @@ docker compose ps
 ```bash
 # Tests
 php artisan test
-php artisan test --coverage
+php artisan test --compact
+php artisan test --filter=FileManagementTest
 
 # Code style
-./vendor/bin/pint          # Auto-fix
-./vendor/bin/pint --test   # Solo verificar
+./vendor/bin/pint --format agent   # Auto-fix (recomendado)
+./vendor/bin/pint --test           # Solo verificar
 
 # Static analysis
 ./vendor/bin/phpstan analyse --memory-limit=256M
@@ -313,9 +221,8 @@ php artisan migrate:status
 # Storage
 php artisan storage:link
 
-# Cache
+# Cache (NO usar route:cache: las rutas usan closures)
 php artisan config:cache
-php artisan route:cache
 php artisan view:cache
 
 # Limpiar cache
