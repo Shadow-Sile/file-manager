@@ -1,71 +1,94 @@
-# File Manager · AEA2
+# File Manager · AEA2 · Laravel y Wasmer
 
-Proyecto propio de gestión de archivos en Laravel 13, Blade, Tailwind, PostgreSQL y Docker. Incluye registro, inicio de sesión, subida de hasta 50 MB, búsqueda, filtro por tipo, paginación, detalles, descarga y eliminación. Cada usuario gestiona únicamente sus archivos, almacenados fuera de la carpeta pública.
-
-## Estado comprobado
-
-40 tests pasan, assets compilados, migraciones SQLite ejecutadas y PHPStan sin errores. Proyecto publicado en GitHub mediante GitHub Desktop. La construcción de la imagen se verifica en GitHub Actions. El despliegue en Render está bloqueado porque la cuenta está suspendida por una factura pendiente. Docker Desktop local tampoco puede arrancar: su instalación no contiene el ejecutable principal.
+Gestor de archivos propio con Laravel 13, Blade, Tailwind, registro e inicio de sesión. Cada usuario puede subir archivos de hasta 50 MB, buscar, filtrar por tipo, consultar detalles, descargar y eliminar sus archivos. Las descargas requieren sesión y autorización. No se ejecutan ni se publican los archivos subidos.
 
 ## Arranque local
 
+Requisitos: PHP 8.5, Composer y Node 24 (el lock actual de Composer requiere al menos PHP 8.4.1).
+
 ```bash
 composer install
+```
+
+Si todavía no existe `.env`:
+
+```bash
 cp .env.example .env
 php artisan key:generate
+```
+
+Conserva la clave y el archivo `.env` si ya existen. Para una instalación nueva con SQLite:
+
+```bash
 touch database/database.sqlite
-php artisan migrate
+php artisan migrate --no-interaction
 npm ci
 npm run build
 php artisan serve
 ```
 
-Si ya existe `.env`, consérvalo. Regístrate desde la aplicación; no se incluye una contraseña de demostración. La recuperación de contraseña usa el mailer de logs por defecto: para enviar correo real hay que configurar SMTP.
+Regístrate en la web. No hay contraseñas de demostración ni verificación de correo obligatoria. La recuperación de contraseña usa logs hasta configurar un servidor SMTP.
 
-## Docker con almacenamiento persistente
+## Producción en Wasmer
 
-1. Arranca Docker Desktop.
-2. Instala dependencias y genera `APP_KEY` como arriba.
-3. Define una contraseña aleatoria en `POSTGRES_PASSWORD` dentro de `.env`.
-4. Ejecuta:
+El despliegue usa un paquete WebAssembly/WASIX, sin Docker como intermediario. `wasmer.toml` fija `shira/php` 8.5.10 porque el runtime oficial `php/php` sigue en la serie 8.3 y no es compatible con el lock de dependencias actual. Es un runtime comunitario; CI comprueba que Laravel arranca dentro de él antes de permitir el despliegue.
+
+`app.yaml` configura PostgreSQL gestionado, sesiones y caché en base de datos y un volumen persistente `uploaded-files` montado en `/data`. Los archivos se guardan en `/data/files`, fuera de `public`. No cambies el nombre del volumen ni lo elimines: Wasmer asocia sus datos a ese nombre. La base de datos recibe credenciales inyectadas por Wasmer; `config/database.php` admite su variable `DB_NAME`. Las migraciones se ejecutan mediante el job de predespliegue `migrate-database`.
+
+### Primera configuración
+
+1. Instala Wasmer desde <https://docs.wasmer.io/install/> e inicia sesión con `wasmer login`.
+2. Crea una app en tu cuenta de Wasmer. Anota el propietario, el nombre real y la URL HTTPS. Usa esos mismos valores en todos los despliegues para conservar la base de datos y el volumen.
+3. En los secretos de la app configura `APP_KEY` con una clave estable generada mediante `php artisan key:generate --show`. Configura `APP_URL` con su URL HTTPS real. No compartas la clave ni la añadas al repositorio.
+4. En GitHub → Settings → Secrets and variables → Actions añade:
+
+| Tipo | Nombre | Valor |
+| --- | --- | --- |
+| Secret | `WASMER_TOKEN` | Token de tu cuenta con acceso a la app |
+| Variable | `WASMER_OWNER` | Tu usuario o namespace de Wasmer |
+| Variable | `WASMER_APP_NAME` | Nombre exacto de la app |
+| Variable | `WASMER_APP_URL` | URL HTTPS real de la app |
+
+5. Envía los cambios a `main` o ejecuta manualmente el workflow en `main`. Si usas un environment `production` con aprobación en GitHub, aprueba ese job.
+6. Comprueba la web pública: registro, subida, listado, detalles, descarga y borrado. Repite una descarga después de un nuevo despliegue para demostrar persistencia.
+
+La base de datos y los volúmenes dependen de las condiciones y recursos disponibles de tu cuenta de Wasmer. No se ha contratado ningún recurso ni se ha verificado todavía el despliegue público.
+
+Para preparar el paquete manualmente usa un checkout limpio y dependencias de producción:
 
 ```bash
-docker compose up -d --build
-docker compose ps
-docker compose logs --tail=100 app
+composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+npm ci
+npm run build
+sh docker/prepare-wasmer.sh
+wasmer run . --net
 ```
 
-Abre el puerto local 8080. Los volúmenes `app_storage` y `db_data` conservan archivos y base de datos al recrear los contenedores. No ejecutes `docker compose down -v` si quieres conservarlos. Haz copias de ambos volúmenes y de `APP_KEY` para un uso real.
+Para desplegar ese paquete:
 
-El entrypoint prepara permisos y cachés, ejecuta migraciones con reintentos y arranca Nginx y PHP-FPM mediante Supervisor.
+```bash
+wasmer deploy --owner TU_USUARIO --name TU_APP
+```
 
-### Archivos de una instalación anterior
+El script de empaquetado incluye exclusivamente código, migraciones, assets y dependencias. No incluye `.env`, base de datos local, archivos subidos ni cachés locales. No publiques el directorio completo mediante un mapeo `"/app" = "."`.
 
-Las subidas nuevas usan `storage/app/private`. Si tenías archivos en `storage/app/public/uploads`, copia el directorio `uploads` a `storage/app/private/uploads`, conservando su estructura, antes de usar esta versión. Después de verificar las descargas, elimina la copia pública para que no siga accesible. No se ha modificado tu almacenamiento original.
+## GitHub Actions: CI/CD
 
-## CI/CD con GitHub Actions y Render
+1. **Checks:** instala PHP 8.5 y Node 24, compila los assets, comprueba migraciones en PostgreSQL y ejecuta PHPUnit, Pint y PHPStan.
+2. **Package:** instala dependencias sin desarrollo, crea el paquete y arranca Laravel en Wasmer. Comprueba `/up`, `/login`, `/register` y que `/.env` devuelve 404. Guarda el paquete validado como artefacto.
+3. **Deploy:** solo en `main`, descarga ese mismo artefacto y ejecuta `wasmer deploy`. Si faltan secretos o variables, falla explícitamente. Comprueba las rutas públicas después del despliegue.
 
-El workflow `.github/workflows/ci-cd.yml` ejecuta:
+Las pull requests verifican el código y el paquete sin desplegar. `develop` también ejecuta los controles. Los despliegues se serializan para evitar cambios simultáneos. No hay hooks ni configuración de Render.
 
-1. Tests PHPUnit en SQLite y comprobación de migraciones en MySQL.
-2. Estilo con Laravel Pint y análisis con PHPStan.
-3. Tras superar los controles en `main`, construye una imagen Linux amd64 y la publica en GHCR con las etiquetas `latest` y SHA.
-4. Llama al deploy hook de Render. Si falta el secreto, falla explícitamente. Un hook aceptado indica que se ha solicitado el despliegue; hay que comprobar en Render que termina y probar la aplicación.
+## Docker opcional para desarrollo
 
-No publica imágenes ni despliega desde pull requests. También permite ejecución manual desde Actions en `main`.
+Se conservan Dockerfile y Compose como alternativa local. Define `POSTGRES_PASSWORD` en `.env` y ejecuta `docker compose up -d --build`. Usa el puerto 8080. Los volúmenes `app_storage` y `db_data` conservan los datos; no uses `down -v` si quieres conservarlos. Esta alternativa no se usa para desplegar en Wasmer.
 
-### Configuración pendiente en las cuentas
+## Archivos de instalaciones anteriores
 
-- Comprobar la ejecución de Actions en `Shadow-Sile/file-manager`.
-- Resolver la suspensión por facturación de la cuenta de Render antes de crear el servicio.
-- Dar visibilidad pública al paquete GHCR si Render lo consume sin credenciales.
-- Crear el Blueprint de `render.yaml`, o conectar un servicio de imagen a `ghcr.io/shadow-sile/file-manager:latest`.
-- En Render definir una `APP_KEY` estable y `APP_URL` con la URL HTTPS real. La conexión PostgreSQL se obtiene del Blueprint.
-- En GitHub, Settings → Secrets and variables → Actions, añadir `RENDER_DEPLOY_HOOK_URL` con el deploy hook del servicio.
-- Probar registro, subida y descarga desde la URL pública; repetir después de un cambio enviado a `main`.
+Si tenías subidas en `storage/app/public/uploads`, copia `uploads` a `storage/app/private/uploads` conservando la estructura y verifica las descargas antes de quitar la copia pública. Una nueva app en Wasmer no importa automáticamente tu SQLite ni tus archivos locales.
 
-**Persistencia en Render:** el Blueprint incluido guarda los archivos en el disco del contenedor. No debes tratarlo como almacenamiento duradero: para conservar subidas entre despliegues necesitas un disco persistente montado en `/var/www/html/storage/app` o almacenamiento externo. Comprueba la disponibilidad y el coste en tu cuenta antes de contratar recursos. Compose sí incluye volúmenes persistentes. La alternativa VPS requiere configurar acceso SSH y adaptar el paso de despliegue: ese despliegue no está implementado aquí.
-
-## Comprobaciones
+## Verificación
 
 ```bash
 php artisan test --compact
@@ -74,15 +97,18 @@ vendor/bin/phpstan analyse --memory-limit=256M
 npm run build
 ```
 
-## Guion para el vídeo
+En un entorno que bloquee sockets locales, PHPStan se puede ejecutar con `--debug` para desactivar sus procesos paralelos.
 
-1. Explica el problema: guardar y gestionar archivos por usuario.
-2. Demuestra registro, subida, búsqueda, detalles, descarga y borrado.
-3. Con una segunda cuenta demuestra que no aparecen los archivos de la primera.
-4. Enseña controlador, modelo, migración y política; explica el almacenamiento privado.
-5. Enseña las etapas del Dockerfile y los volúmenes de Compose.
-6. Explica CI (tests, estilo y análisis) y CD (imagen GHCR y hook).
-7. Haz un cambio visible, súbelo a `main`, muestra los jobs en Actions, el despliegue en Render y el cambio en la web pública.
-8. Explica los secretos sin mostrar sus valores y la limitación de persistencia del hosting elegido.
+## Demostración para el vídeo
 
-La entrega requiere una web pública funcionando y demostrar el despliegue real. Tener el workflow preparado por sí solo no completa ese requisito.
+1. Explica qué resuelve la aplicación y demuestra registro, subida, búsqueda, filtro, detalles, descarga y eliminación.
+2. Accede con una segunda cuenta y demuestra el aislamiento entre usuarios.
+3. Enseña el controlador, la migración, el modelo y la política de autorización.
+4. Explica CI con las pruebas, el estilo, el análisis y la compilación del frontend.
+5. Enseña `wasmer.toml`, `app.yaml`, el volumen y el job de migraciones, sin mostrar secretos.
+6. Haz un cambio visible, súbelo a `main`, muestra los jobs de Actions y el resultado en la URL pública de Wasmer.
+7. Descarga un archivo subido antes del despliegue para demostrar que se conserva.
+
+La entrega requiere demostrar el despliegue real funcionando. Tener estos archivos preparados todavía no acredita esa parte del ejercicio.
+
+Referencias: [Wasmer y Laravel](https://docs.wasmer.io/edge/guides/laravel/), [configuración de apps](https://docs.wasmer.io/edge/configuration/), [jobs de despliegue](https://docs.wasmer.io/edge/configuration/jobs/) y [runtime PHP 8.5](https://wasmer.io/shira/php).

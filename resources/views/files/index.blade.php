@@ -7,21 +7,19 @@
     </div>
 
     @if (session('success'))
-        <p role="status" class="mb-4 rounded bg-green-100 p-4 text-green-900">{{ session('success') }}</p>
+        <div role="status" class="mb-4 rounded-md bg-green-100 p-4 text-green-800">{{ session('success') }}</div>
     @endif
-    <form method="GET" action="{{ route('files.index') }}" class="mb-6 flex flex-wrap gap-3">
-        <input name="search" aria-label="Buscar archivos" placeholder="Buscar por nombre…" value="{{ request('search') }}" maxlength="255" class="rounded-md border-gray-300">
+    <form method="GET" action="{{ route('files.index') }}" class="mb-4 flex flex-wrap gap-3">
+        <input type="search" name="search" aria-label="Buscar archivos" placeholder="Buscar por nombre" value="{{ request('search') }}" maxlength="255" class="rounded-md border-gray-300">
         <select name="type" aria-label="Tipo de archivo" class="rounded-md border-gray-300">
             <option value="">Todos los tipos</option>
-            @foreach (['image' => 'Imágenes', 'video' => 'Vídeos', 'audio' => 'Audio', 'application' => 'Documentos', 'text' => 'Texto'] as $value => $label)
+            @foreach (['image/' => 'Imágenes', 'application/pdf' => 'PDF', 'text/' => 'Texto', 'video/' => 'Vídeo', 'audio/' => 'Audio'] as $value => $label)
                 <option value="{{ $value }}" @selected(request('type') === $value)>{{ $label }}</option>
             @endforeach
         </select>
-        <button class="rounded bg-blue-600 px-4 py-2 text-white">Buscar</button>
+        <button class="rounded-md bg-blue-600 px-4 py-2 text-white">Filtrar</button>
         <a href="{{ route('files.index') }}" class="px-4 py-2">Limpiar</a>
     </form>
-    @error('search') <p class="text-red-600">{{ $message }}</p> @enderror
-    @error('type') <p class="text-red-600">{{ $message }}</p> @enderror
     <div class="overflow-hidden shadow-sm sm:rounded-lg">
         <div class="bg-white dark:bg-gray-800 overflow-hidden">
             <!-- Table Header -->
@@ -39,8 +37,8 @@
                     <div class="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-750">
                         <div class="grid grid-cols-12 gap-4 text-sm">
                             <div class="col-span-6">
-                                <div class="font-medium text-gray-900 dark:text-white">{{ $file->original_name }}</div>
-                                <div class="text-gray-500 dark:text-gray-400 text-xs truncate">{{ $file->path }}</div>
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $file->icon }} {{ $file->original_name }}</div>
+                                <div class="text-gray-500 dark:text-gray-400 text-xs truncate">{{ $file->formatted_size }}</div>
                             </div>
                             <div class="col-span-3 flex items-center">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
@@ -63,11 +61,11 @@
                     </div>
                 @empty
                     <div class="px-6 py-4 text-center">
-                        <p class="text-gray-500 dark:text-gray-400">No hay archivos.</p>
+                        <p class="text-gray-500 dark:text-gray-400">Todavía no hay archivos. Sube el primero.</p>
                     </div>
                 @endforelse
             </div>
         </div>
     </div>
-<div class="mt-6">{{ $files->links() }}</div>
+    <div class="mt-4">{{ $files->links() }}</div>
 </x-app-layout>
