@@ -38,3 +38,4 @@ jobs:
     action:
       execute:
         command: migrate
+        cli_args: ["/app/artisan", "migrate", "--force", "--no-interaction"]
