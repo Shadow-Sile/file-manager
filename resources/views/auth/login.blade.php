@@ -9,8 +9,8 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 min-h-screen flex">
-    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div class="min-h-screen w-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8">
             <div>
                 <div class="mx-auto h-12 w-12 text-blue-600 dark:text-blue-400">
@@ -78,7 +78,7 @@
 
             @if (Route::has('register'))
                 <p class="text-center text-sm text-gray-600 dark:text-gray-400">
-                    ¿No tienes cuenta?{' '}
+                    ¿No tienes cuenta?
                     <a href="{{ route('register') }}" class="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400">
                         Regístrate
                     </a>
