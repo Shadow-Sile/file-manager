@@ -38,4 +38,8 @@ jobs:
     action:
       execute:
         command: migrate
-        cli_args: ["/app/artisan", "migrate", "--force", "--no-interaction"]
+        env:
+          APP_ENV: production
+          DB_CONNECTION: pgsql
+          DB_SSLMODE: require
+          LOG_CHANNEL: stderr
