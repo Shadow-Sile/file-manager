@@ -45,12 +45,15 @@ El despliegue usa un paquete WebAssembly/WASIX, sin Docker como intermediario. `
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
 | Secret | `WASMER_TOKEN` | Token de tu cuenta con acceso a la app |
+| Secret | `WASMER_APP_KEY` | Clave Laravel estable, generada una vez |
 | Variable | `WASMER_OWNER` | Tu usuario o namespace de Wasmer |
 | Variable | `WASMER_APP_NAME` | Nombre exacto de la app |
 | Variable | `WASMER_APP_URL` | URL HTTPS real de la app |
 
 5. Envía los cambios a `main` o ejecuta manualmente el workflow en `main`. Si usas un environment `production` con aprobación en GitHub, aprueba ese job.
 6. Comprueba la web pública: registro, subida, listado, detalles, descarga y borrado. Repite una descarga después de un nuevo despliegue para demostrar persistencia.
+
+El pipeline puede crear la app directamente desde el paquete validado: no necesita el importador Git ni el compilador web de Wasmer. `APP_KEY` y `APP_URL` se inyectan mediante un archivo de entorno temporal, fuera del paquete, que se elimina al terminar.
 
 La base de datos y los volúmenes dependen de las condiciones y recursos disponibles de tu cuenta de Wasmer. No se ha contratado ningún recurso ni se ha verificado todavía el despliegue público.
 
