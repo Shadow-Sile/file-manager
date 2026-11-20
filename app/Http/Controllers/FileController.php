@@ -10,16 +10,7 @@ use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class FileController extends Controller
-{
-    public function index(Request $request): View
-    {
-        $request->validate([
-            'search' => 'nullable|string|max:255',
-            'type' => 'nullable|in:image/,video/,audio/,application/pdf,text/',
-        ]);
-
-        $query = File::where('user_id', auth()->id())->latest();
+cla
 
         if ($request->filled('search')) {
             $query->where('original_name', 'like', '%'.$request->search.'%');
