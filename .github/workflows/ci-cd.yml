@@ -157,6 +157,7 @@ jobs:
           WASMER_APP_NAME="$(printf '%s' "$WASMER_APP_NAME" | tr -d '\r\n ')"
           WASMER_APP_URL="$(printf '%s' "$WASMER_APP_URL" | tr -d '\r\n ')"
           export WASMER_TOKEN
+          wasmer whoami
           umask 077
           printf 'APP_KEY=%s\nAPP_URL=%s\n' "$WASMER_APP_KEY" "$WASMER_APP_URL" > "$RUNNER_TEMP/wasmer-runtime.env"
           trap 'rm -f "$RUNNER_TEMP/wasmer-runtime.env"' EXIT
